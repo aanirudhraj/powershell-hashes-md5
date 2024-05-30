@@ -19,12 +19,16 @@ def store_file_paths(base_path, db_path):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
-    for root, _, files in os.walk(base_path):
-        for file in files:
-            if file.startswith('.') or file.startswith('~'):
-                continue
-            file_path = str(Path(root) / file)
-            cursor.execute('INSERT INTO files (path) VALUES (?)', (file_path,))
+    def scan_directory(directory):
+        with os.scandir(directory) as it:
+            for entry in it:
+                if entry.is_file() and not entry.name.startswith('.') and not entry.name.startswith('~'):
+                    file_path = str(entry.path)
+                    cursor.execute('INSERT INTO files (path) VALUES (?)', (file_path,))
+                elif entry.is_dir() and not entry.name.startswith('.') and not entry.name.startswith('~'):
+                    scan_directory(entry.path)
+    
+    scan_directory(base_path)
     
     conn.commit()
     conn.close()
