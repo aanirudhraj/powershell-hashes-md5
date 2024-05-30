@@ -15,21 +15,28 @@ def initialize_db(db_path):
     conn.commit()
     conn.close()
 
-def store_file_paths(base_path, db_path):
+def store_file_paths(base_path, db_path, batch_size=100):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
     
+    file_list = []
+
     def scan_directory(directory):
         with os.scandir(directory) as it:
             for entry in it:
                 if entry.is_file() and not entry.name.startswith('.') and not entry.name.startswith('~'):
-                    file_path = str(entry.path)
-                    cursor.execute('INSERT INTO files (path) VALUES (?)', (file_path,))
+                    file_list.append((str(entry.path),))
+                    if len(file_list) >= batch_size:
+                        cursor.executemany('INSERT INTO files (path) VALUES (?)', file_list)
+                        file_list.clear()
                 elif entry.is_dir() and not entry.name.startswith('.') and not entry.name.startswith('~'):
                     scan_directory(entry.path)
     
     scan_directory(base_path)
     
+    if file_list:  # Insert any remaining files
+        cursor.executemany('INSERT INTO files (path) VALUES (?)', file_list)
+
     conn.commit()
     conn.close()
 
